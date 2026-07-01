@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moto-QR Chile — Registro de Conductores</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root { --rojo:#CC0000; --amarillo:#FFD700; --negro:#0D0D0D; --verde:#00A651; }
+*{ box-sizing:border-box; margin:0; padding:0; }
+body{ font-family:'Inter','Segoe UI',Arial,sans-serif; background:#111; color:#f0f0f0; min-height:100vh; }
+
+header{ background:linear-gradient(135deg,#AA0000,#6B0000); }
+.header-stripe{ height:7px; background:repeating-linear-gradient(90deg,var(--amarillo) 0,var(--amarillo) 28px,var(--negro) 28px,var(--negro) 56px); }
+.header-inner{ display:flex; align-items:center; gap:16px; padding:16px 28px; }
+.header-inner h1{ font-size:1.6rem; font-weight:900; letter-spacing:2px; text-transform:uppercase; }
+.header-inner p{ font-size:0.8rem; color:rgba(255,255,255,0.75); margin-top:2px; }
+
+.tabs{ display:flex; background:#161616; border-bottom:2px solid #2a2a2a; overflow-x:auto; }
+.tab-btn{ padding:13px 26px; background:none; border:none; color:#888; font-size:0.9rem; font-weight:600; cursor:pointer; white-space:nowrap; border-bottom:3px solid transparent; transition:all 0.2s; }
+.tab-btn.active{ color:var(--amarillo); border-bottom-color:var(--amarillo); background:rgba(255,215,0,0.04); }
+.tab-btn:hover:not(.active){ color:#ddd; }
+
+.tab-content{ display:none; padding:28px; max-width:880px; margin:0 auto; }
+.tab-content.active{ display:block; }
+
+.form-section{ background:#1c1c1c; border-radius:12px; padding:24px; margin-bottom:20px; border:1px solid #2e2e2e; }
+.form-section h3{ font-size:0.85rem; font-weight:700; color:var(--amarillo); text-transform:uppercase; letter-spacing:1px; margin-bottom:18px; padding-bottom:10px; border-bottom:1px solid #2e2e2e; display:flex; align-items:center; gap:8px; }
+.form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media(max-width:580px){ .form-grid{ grid-template-columns:1fr; } }
+.form-group{ display:flex; flex-direction:column; gap:5px; }
+.form-group.full{ grid-column:1/-1; }
+label{ font-size:0.72rem; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px; }
+input,select,textarea{ background:#242424; border:1px solid #3a3a3a; border-radius:8px; color:#f0f0f0; padding:10px 13px; font-size:0.92rem; font-family:'Inter','Segoe UI',Arial,sans-serif; transition:border-color 0.2s; width:100%; }
+input:focus,select:focus,textarea:focus{ outline:none; border-color:var(--amarillo); }
+select option{ background:#242424; }
+textarea{ resize:vertical; min-height:72px; }
+/* Prefijo +56 9 en campos de teléfono */
+.phone-wrap{ display:flex; align-items:center; background:#242424; border:1px solid #3a3a3a; border-radius:8px; overflow:hidden; transition:border-color 0.2s; }
+.phone-wrap:focus-within{ border-color:var(--amarillo); }
+.phone-prefix{ padding:10px 6px 10px 13px; font-size:0.92rem; font-weight:700; color:#aaa; white-space:nowrap; user-select:none; }
+.phone-wrap input{ border:none !important; border-radius:0; background:transparent; padding:10px 13px 10px 2px; flex:1; width:auto; min-width:0; }
+.phone-wrap input:focus{ outline:none; border:none !important; }
+
+/* Combo: select + texto libre */
+.combo-wrap{ display:flex; flex-direction:column; gap:6px; }
+.combo-wrap select{ border-radius:8px 8px 0 0; border-bottom:1px solid #555; }
+.combo-wrap input{ border-radius:0 0 8px 8px; border-top:none; font-size:0.85rem; }
+.combo-hint{ font-size:0.72rem; color:var(--amarillo); padding:2px; font-weight:600; }
+
+/* Contacto emergencia con WhatsApp */
+.contacto-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media(max-width:580px){ .contacto-grid{ grid-template-columns:1fr; } }
+.wa-row{ display:flex; gap:8px; align-items:flex-end; }
+.wa-row input{ flex:1; }
+.btn-wa{ background:#25D366; border:none; color:white; padding:10px 14px; border-radius:8px; font-size:1rem; cursor:pointer; flex-shrink:0; transition:all 0.2s; white-space:nowrap; font-weight:700; }
+.btn-wa:hover{ background:#1ebe57; transform:translateY(-1px); }
+
+.btn-primary{ background:linear-gradient(135deg,var(--rojo),#8B0000); color:white; border:none; padding:13px 32px; border-radius:8px; font-size:0.95rem; font-weight:700; cursor:pointer; letter-spacing:1px; text-transform:uppercase; transition:all 0.2s; display:inline-flex; align-items:center; gap:8px; }
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 6px 20px rgba(204,0,0,0.4); }
+.btn-secondary{ background:#242424; color:#ccc; border:1px solid #3a3a3a; padding:10px 20px; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px; }
+.btn-secondary:hover{ border-color:var(--amarillo); color:var(--amarillo); }
+.btn-excel{ background:linear-gradient(135deg,#1D6F42,#145A32); color:white; border:none; padding:11px 24px; border-radius:8px; font-size:0.9rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all 0.2s; }
+.btn-excel:hover{ transform:translateY(-2px); }
+.btn-eliminar{ background:var(--rojo); color:white; border:none; padding:6px 12px; border-radius:6px; font-size:0.78rem; font-weight:900; cursor:pointer; transition:all 0.2s; white-space:nowrap; letter-spacing:0.5px; }
+.btn-eliminar:hover{ background:#ff0000; transform:scale(1.05); box-shadow:0 3px 10px rgba(204,0,0,0.5); }
+
+.alert-success{ background:rgba(0,166,81,0.12); border:1px solid var(--verde); color:#6EE7A0; padding:14px 18px; border-radius:8px; margin-bottom:18px; font-weight:600; display:none; align-items:center; gap:10px; }
+.alert-success.show{ display:flex; }
+
+/* TABLA */
+.table-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
+.conductor-count{ background:var(--rojo); color:white; padding:4px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; }
+.table-wrapper{ overflow-x:auto; border-radius:10px; border:1px solid #2e2e2e; }
+table{ width:100%; border-collapse:collapse; min-width:700px; }
+thead{ background:#161616; }
+th{ padding:11px 13px; text-align:left; font-size:0.72rem; font-weight:700; color:var(--amarillo); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
+td{ padding:11px 13px; font-size:0.84rem; border-bottom:1px solid #222; }
+tr:last-child td{ border-bottom:none; }
+tr:hover td{ background:rgba(255,215,0,0.03); }
+tr{ transition:background 0.3s, opacity 0.3s, transform 0.3s; }
+.badge-sangre{ background:rgba(204,0,0,0.2); color:#FF8080; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; }
+.empty-state{ text-align:center; padding:50px 20px; color:#444; }
+
+/* MODAL */
+.modal-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:1000; align-items:center; justify-content:center; padding:20px; overflow-y:auto; }
+.modal-overlay.open{ display:flex; }
+.modal-box{ background:#181818; border-radius:16px; padding:26px; max-width:520px; width:100%; border:1px solid #2e2e2e; position:relative; }
+.modal-close{ position:absolute; top:14px; right:14px; background:#2a2a2a; border:none; color:#888; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center; }
+.modal-close:hover{ background:var(--rojo); color:white; }
+.modal-title{ font-size:1rem; font-weight:800; color:var(--amarillo); margin-bottom:4px; text-transform:uppercase; letter-spacing:1px; }
+.modal-subtitle{ font-size:0.78rem; color:#666; margin-bottom:20px; }
+.modal-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; padding-top:18px; border-top:1px solid #2a2a2a; }
+.btn-print{ background:linear-gradient(135deg,#1a3a6b,#0d2248); color:white; border:none; padding:11px 22px; border-radius:8px; font-size:0.88rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all 0.2s; }
+.btn-print:hover{ transform:translateY(-2px); }
+
+/* ============================
+   STICKER — diseño final
+   ============================ */
+.sticker-unico{
+  width:100%; max-width:480px;
+  background:#D8D8D8;
+  border-radius:14px;
+  display:grid;
+  grid-template-columns:148px 1fr;
+  overflow:hidden;
+  font-family:'Arial Black',Arial,sans-serif;
+  border:2px solid #bbb;
+  position:relative;
+}
+.sticker-unico::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:5px;
+  background:var(--rojo); z-index:2;
+}
+.sticker-unico .col-qr{
+  background:#1a1a1a;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:14px 8px 10px; gap:5px;
+  border-right:3px solid #999;
+}
+.sticker-unico .qr-wrap{
+  width:120px; height:120px;
+  background:white; border-radius:6px;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.sticker-unico .scan-txt{
+  font-size:0.48rem; color:#aaa; text-align:center;
+  font-family:Arial,sans-serif; line-height:1.3;
+}
+.sticker-unico .col-info{
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:12px 12px 8px; gap:4px;
+}
+.sticker-unico .emer-row{ display:flex; align-items:center; gap:6px; }
+.sticker-unico .baliza{
+  width:12px; height:12px; background:var(--rojo); border-radius:50%;
+  animation:pulse 1s infinite; box-shadow:0 0 8px var(--rojo); flex-shrink:0;
+}
+.sticker-unico .emer-txt{ font-size:1rem; font-weight:900; color:#111; letter-spacing:3px; text-transform:uppercase; }
+.sticker-unico .nombre-txt{ display:none; }
+/* Fila sangre + nocasco juntos */
+.sticker-unico .sangre-nocasco-row{
+  display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+}
+.sticker-unico .sangre-txt{ font-size:2.6rem; font-weight:900; color:var(--rojo); line-height:1; flex-shrink:0; }
+.sticker-unico .nocasco-box{
+  background:var(--negro); border-radius:7px; padding:5px 8px;
+  display:flex; align-items:center; justify-content:center; flex:1;
+}
+.sticker-unico .nocasco-txt{ font-size:0.82rem; font-weight:900; color:#fff; text-transform:uppercase; letter-spacing:1px; line-height:1; text-align:center; white-space:nowrap; }
+/* NÚMEROS EMERGENCIA */
+.sticker-unico .nums-emergencia{
+  background:var(--negro);
+  border-radius:6px;
+  padding:5px 4px;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:2px;
+}
+.sticker-unico .num-bloque{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-right:1px solid #333;
+  padding:2px 2px;
+}
+.sticker-unico .num-bloque:last-child{ border-right:none; }
+.sticker-unico .num-ico{ font-size:0.9rem; line-height:1; }
+.sticker-unico .num-val{
+  font-size:1.1rem; font-weight:900; color:#ffffff;
+  font-family:'Arial Black',Arial,sans-serif; line-height:1;
+}
+.sticker-unico .num-lbl{ font-size:0.5rem; color:#ccc; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; font-family:'Arial Black',Arial,sans-serif; }
+
+@keyframes pulse{
+  0%,100%{ opacity:1; transform:scale(1); }
+  50%{ opacity:0.55; transform:scale(1.25); }
+}
+
+/* PÁGINA PÚBLICA */
+#pagina-qr-content{ display:none; position:fixed; inset:0; background:#0D0D0D; z-index:9999; overflow-y:auto; }
+#pagina-qr-content.show{ display:block; }
+.pq-beacon-bar{ background:var(--negro); display:flex; align-items:center; justify-content:center; gap:10px; padding:8px 16px; }
+.pq-beacon{ width:14px; height:14px; background:var(--rojo); border-radius:50%; animation:pulse 0.8s infinite; box-shadow:0 0 10px var(--rojo); }
+.pq-beacon-txt{ font-size:0.7rem; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:2px; }
+.pq-nocasco{ background:var(--rojo); text-align:center; padding:14px; font-size:1.5rem; font-weight:900; color:white; letter-spacing:2px; text-transform:uppercase; font-family:'Arial Black',Arial,sans-serif; }
+.pq-body{ max-width:440px; margin:0 auto; padding:0 16px 32px; }
+.pq-sangre-card{ background:#2e2e2e; border-radius:14px; padding:20px 24px; text-align:center; margin:18px 0; border:3px solid var(--rojo); }
+.pq-sangre-lbl{ font-size:0.7rem; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; }
+.pq-sangre-val{ font-size:4rem; font-weight:900; color:var(--amarillo); line-height:1; font-family:'Arial Black',Arial,sans-serif; }
+.pq-dato{ display:flex; align-items:flex-start; gap:14px; padding:14px 0; border-bottom:1px solid #1e1e1e; }
+.pq-dato:last-of-type{ border-bottom:none; }
+.pq-ico{ font-size:1.4rem; width:30px; text-align:center; flex-shrink:0; margin-top:2px; }
+.pq-lbl{ font-size:0.68rem; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px; }
+.pq-val{ font-size:0.98rem; font-weight:600; color:#f0f0f0; line-height:1.3; }
+
+/* Contacto con botón WhatsApp en vista pública */
+.pq-contacto-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.pq-contacto-row .pq-val{ flex:1; }
+.btn-wa-pub{ background:#25D366; border:none; color:white; padding:8px 14px; border-radius:8px; font-size:0.85rem; font-weight:700; cursor:pointer; white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+
+.pq-emer-block{ background:#161616; border:1.5px solid #2a2a2a; border-radius:12px; padding:16px; margin-top:8px; }
+.pq-emer-title{ font-size:0.68rem; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:1px; text-align:center; margin-bottom:12px; }
+.pq-nums{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.pq-num-item{ background:#0D0D0D; border:1.5px solid var(--rojo); border-radius:8px; padding:10px 4px; text-align:center; }
+.pq-n{ font-size:1.8rem; font-weight:900; color:var(--rojo); line-height:1; font-family:'Arial Black',Arial,sans-serif; }
+.pq-s{ font-size:0.6rem; color:#666; text-transform:uppercase; margin-top:3px; }
+.btn-back{ display:block; margin:20px auto 0; background:transparent; color:#444; border:1px solid #2a2a2a; padding:10px 24px; border-radius:8px; cursor:pointer; font-size:0.85rem; }
+
+@media print{
+  body > *:not(.modal-overlay){ display:none!important; }
+  .modal-overlay{ position:static!important; display:block!important; background:none; padding:0; }
+  .modal-box{ border:none; padding:0; max-width:100%; background:none; }
+  .modal-title,.modal-subtitle,.modal-close,.modal-actions{ display:none!important; }
+  .sticker-unico{ width:8cm!important; max-width:8cm!important; border-radius:4px; }
+  @keyframes pulse{ 0%,100%{opacity:1;} }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    
+    <div>
+      <h1>Moto-QR — Chile</h1>
+      <p>Sistema de Identificación de Emergencia de Riders — <strong style="font-size:1.05rem;font-weight:900;color:#fff;">Para Santos y Pecadores</strong></p>
+    </div>
+  </div>
+  <div class="header-stripe"></div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('registro',event)">📋 Registro</button>
+  <button class="tab-btn" onclick="showTab('admin',event)">📊 Administrador</button>
+  <button class="tab-btn" onclick="showTab('acerca',event)">ℹ️ Acerca de</button>
+</div>
+
+<!-- TAB REGISTRO -->
+<div class="tab-content active" id="tab-registro">
+  <div class="alert-success" id="alertaExito">
+    <span style="font-size:1.4rem">✅</span>
+    <div>
+      <div>¡Conductor registrado exitosamente!</div>
+      <div style="font-size:0.8rem;color:#8EE3B2;margin-top:2px">Su sticker QR ha sido generado.</div>
+    </div>
+  </div>
+
+  <!-- DATOS PERSONALES -->
+  <div class="form-section">
+    <h3>👤 Datos Personales</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre Completo *</label><input type="text" id="f_nombre" placeholder="Juan Pérez González"></div>
+      <div class="form-group"><label>RUT</label><input type="text" id="f_rut" placeholder="12.345.678-9" oninput="formatearRUT(this)" maxlength="12"></div>
+      <div class="form-group">
+        <label>Fecha de Nacimiento</label>
+        <input type="date" id="f_nacimiento" onchange="calcularEdad()" max="">
+      </div>
+      <div class="form-group"><label>Edad *</label><input type="number" id="f_edad" placeholder="35" min="14" max="99"></div>
+      <div class="form-group"><label>Teléfono Personal</label>
+        <div class="phone-wrap"><span class="phone-prefix">+56 9</span><input type="tel" id="f_telefono" placeholder="12345678" maxlength="8" oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)"></div>
+      </div>
+      <div class="form-group">
+        <label>Región</label>
+        <select id="f_region" onchange="actualizarComunas()">
+          <option value="">Seleccionar región...</option>
+          <option value="Arica y Parinacota">Arica y Parinacota</option>
+          <option value="Tarapacá">Tarapacá</option>
+          <option value="Antofagasta">Antofagasta</option>
+          <option value="Atacama">Atacama</option>
+          <option value="Coquimbo">Coquimbo</option>
+          <option value="Valparaíso">Valparaíso</option>
+          <option value="Metropolitana">Metropolitana de Santiago</option>
+          <option value="O'Higgins">O'Higgins</option>
+          <option value="Maule">Maule</option>
+          <option value="Ñuble">Ñuble</option>
+          <option value="Biobío">Biobío</option>
+          <option value="La Araucanía">La Araucanía</option>
+          <option value="Los Ríos">Los Ríos</option>
+          <option value="Los Lagos">Los Lagos</option>
+          <option value="Aysén">Aysén</option>
+          <option value="Magallanes">Magallanes</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Comuna</label>
+        <select id="f_comuna">
+          <option value="">Seleccione primero una región...</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTACTO EMERGENCIA — sin botón WhatsApp en formulario -->
+  <div class="form-section">
+    <h3>🚨 Contacto de Emergencia</h3>
+    <div class="contacto-grid">
+      <div class="form-group">
+        <label>Nombre del Contacto *</label>
+        <input type="text" id="f_contacto_nombre" placeholder="María González">
+      </div>
+      <div class="form-group">
+        <label>Relación</label>
+        <select id="f_relacion">
+          <option value="">Seleccionar...</option>
+          <option>Cónyuge / Pareja</option><option>Padre / Madre</option>
+          <option>Hijo/a</option><option>Hermano/a</option><option>Amigo/a</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Teléfono de Emergencia *</label>
+        <div class="phone-wrap"><span class="phone-prefix">+56 9</span><input type="tel" id="f_contacto_tel" placeholder="12345678" maxlength="8" oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFORMACIÓN MÉDICA con combos -->
+  <div class="form-section">
+    <h3>🩸 Información Médica</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Grupo Sanguíneo *</label>
+        <select id="f_sangre">
+          <option value="">Seleccionar...</option>
+          <option>A+</option><option>A−</option><option>B+</option><option>B−</option>
+          <option>AB+</option><option>AB−</option><option>O+</option><option>O−</option>
+          <option>Desconocido</option>
+        </select>
+      </div>
+
+      <!-- ALERGIAS: combo select + texto libre -->
+      <div class="form-group">
+        <label>Alergias</label>
+        <div class="combo-wrap">
+          <select id="f_alergias_sel" onchange="agregarCombo('f_alergias_sel','f_alergias')">
+            <option value="">— Seleccionar alergia común —</option>
+            <option>Penicilina</option>
+            <option>Amoxicilina</option>
+            <option>Aspirina / AINEs</option>
+            <option>Ibuprofeno</option>
+            <option>Sulfas</option>
+            <option>Látex</option>
+            <option>Mariscos</option>
+            <option>Frutos secos / Maní</option>
+            <option>Polen</option>
+            <option>Polvo / Ácaros</option>
+            <option>Yodo / Contraste</option>
+            <option>Morfina / Opioides</option>
+            <option>Ninguna</option>
+          </select>
+          <input type="text" id="f_alergias" placeholder="✏️ Escribe aquí cualquier alergia...">
+          <span class="combo-hint">✏️ Selecciona del listado O escribe libremente en el campo de texto</span>
+        </div>
+      </div>
+
+      <!-- MEDICAMENTOS: combo select + texto libre -->
+      <div class="form-group full">
+        <label>Medicamentos Habituales</label>
+        <div class="combo-wrap">
+          <select id="f_med_sel" onchange="agregarCombo('f_med_sel','f_medicamentos')">
+            <option value="">— Seleccionar medicamento común —</option>
+            <option>Metformina (Diabetes)</option>
+            <option>Insulina (Diabetes)</option>
+            <option>Enalapril (Hipertensión)</option>
+            <option>Losartán (Hipertensión)</option>
+            <option>Irbesartán (Hipertensión)</option>
+            <option>Valsartán (Hipertensión)</option>
+            <option>Amlodipino (Hipertensión)</option>
+            <option>Hidroclorotiazida (Hipertensión)</option>
+            <option>Atorvastatina (Colesterol)</option>
+            <option>Omeprazol (Gástrico)</option>
+            <option>Levotiroxina (Tiroides)</option>
+            <option>Ácido Acetilsalicílico (Cardioprotector)</option>
+            <option>Warfarina / Acenocumarol (Anticoagulante)</option>
+            <option>Rivoxabán / Apixabán (Anticoagulante)</option>
+            <option>Carbamazepina (Epilepsia)</option>
+            <option>Valproato (Epilepsia)</option>
+            <option>Salbutamol / Inhalador (Asma)</option>
+            <option>Antidepresivos (ISRS)</option>
+            <option>Ninguno</option>
+          </select>
+          <textarea id="f_medicamentos" placeholder="✏️ Escribe aquí cualquier medicamento (ej: Irbesartán 150mg)..."></textarea>
+          <span class="combo-hint">✏️ Selecciona del listado O escribe libremente en el campo de texto</span>
+        </div>
+      </div>
+
+      <!-- CONDICIONES MÉDICAS: combo select + texto libre -->
+      <div class="form-group full">
+        <label>Condiciones Médicas Relevantes</label>
+        <div class="combo-wrap">
+          <select id="f_cond_sel" onchange="agregarCombo('f_cond_sel','f_condiciones')">
+            <option value="">— Seleccionar condición común —</option>
+            <option>Diabetes Tipo 1</option>
+            <option>Diabetes Tipo 2</option>
+            <option>Hipertensión Arterial</option>
+            <option>Cardiopatía / Enfermedad Coronaria</option>
+            <option>Marcapasos</option>
+            <option>Epilepsia</option>
+            <option>Asma</option>
+            <option>EPOC</option>
+            <option>Insuficiencia Renal</option>
+            <option>Hipotiroidismo</option>
+            <option>Anticoagulado</option>
+            <option>Hemofilia</option>
+            <option>VIH</option>
+            <option>Cáncer en tratamiento</option>
+            <option>Embarazo</option>
+            <option>Ninguna</option>
+          </select>
+          <textarea id="f_condiciones" placeholder="✏️ Escribe aquí cualquier condición médica..."></textarea>
+          <span class="combo-hint">✏️ Selecciona del listado O escribe libremente en el campo de texto</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHÍCULO -->
+  <div class="form-section">
+    <h3>🚗 Vehículo</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Tipo de Vehículo</label>
+        <select id="f_vehiculo">
+          <option>Moto / Motocicleta</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Marca</label>
+        <select id="f_marca">
+          <option value="">Seleccionar...</option>
+          <option>Harley-Davidson</option>
+          <option>Indian</option>
+          <option>BMW Motorrad</option>
+          <option>Honda</option>
+          <option>Suzuki</option>
+          <option>Yamaha</option>
+          <option>Kawasaki</option>
+          <option>Ducati</option>
+          <option>KTM</option>
+          <option>Royal Enfield</option>
+          <option>Triumph</option>
+          <option>Otra</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Modelo</label><input type="text" id="f_modelo" placeholder="Ej: Sportster, Road King, GS 1250..."></div>
+      <div class="form-group"><label>Patente</label><input type="text" id="f_patente" placeholder="AA·1234"></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn-primary" onclick="registrarConductor()">🚀 Registrar y Generar QR</button>
+    <button class="btn-secondary" onclick="limpiarForm()">🗑️ Limpiar</button>
+  </div>
+</div>
+
+<!-- TAB ADMIN -->
+<div class="tab-content" id="tab-admin">
+
+  <!-- PANTALLA DE ACCESO CON CÓDIGO -->
+  <div id="admin-login" style="max-width:380px;margin:40px auto;text-align:center;background:#1c1c1c;border:1px solid #2e2e2e;border-radius:14px;padding:36px 28px;">
+    <div style="font-size:2.6rem;margin-bottom:14px">🔒</div>
+    <h2 style="font-size:1.15rem;font-weight:800;color:var(--amarillo);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Acceso Restringido</h2>
+    <p style="font-size:0.85rem;color:#888;margin-bottom:24px">Ingrese el código de administrador para ver los registros</p>
+    <input type="password" id="admin-code" placeholder="Código de acceso" maxlength="30"
+           style="text-align:center;font-size:1.1rem;letter-spacing:2px;padding:14px;margin-bottom:16px;font-weight:700"
+           onkeydown="if(event.key==='Enter') validarAcceso()">
+    <button onclick="validarAcceso()" class="btn-primary" style="width:100%;justify-content:center">🔓 Ingresar</button>
+    <p id="admin-error" style="display:none;color:#ff6b6b;font-size:0.82rem;margin-top:14px;font-weight:600">❌ Código incorrecto. Intente nuevamente.</p>
+  </div>
+
+  <!-- CONTENIDO ADMIN (oculto hasta validar) -->
+  <div id="admin-content" style="display:none">
+  <div class="table-header">
+    <div>
+      <h2 style="font-size:1.1rem;font-weight:700">📊 Riders Registrados</h2>
+      <p style="font-size:0.78rem;color:#555;margin-top:3px">Hoja consolidada — solo administrador</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="conductor-count" id="countLabel">0 conductores</span>
+      <button class="btn-excel" onclick="exportarExcel()">📥 Descargar Excel</button>
+      <button onclick="eliminarTodos()" style="background:#8B0000;color:#fff;border:none;padding:11px 18px;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;">Eliminar Todos</button>
+      <button onclick="bloquearAdmin()" style="background:#444;color:#fff;border:none;padding:11px 14px;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;">🔒 Bloquear</button>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Nombre</th><th>RUT</th><th>Edad</th><th>Tel. Personal</th>
+          <th>Contacto</th><th>Relación</th><th>Tel. Emergencia</th><th>Sangre</th>
+          <th>Alergias</th><th>Medicamentos</th><th>Condiciones</th>
+          <th>Vehículo</th><th>Patente</th><th>Fecha</th><th>Hora</th><th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyAdmin">
+        <tr><td colspan="16"><div class="empty-state"><div style="font-size:2.5rem;margin-bottom:10px">🏍️</div><p>Sin conductores registrados aún.</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  </div><!-- fin admin-content -->
+</div>
+
+<!-- TAB ACERCA -->
+<div class="tab-content" id="tab-acerca">
+  <div class="form-section">
+    <h3>ℹ️ Acerca del Sistema</h3>
+    <p style="color:#ccc;line-height:1.7;margin-bottom:20px">Sistema de identificación de emergencia para conductores en Chile. Al escanear el QR del casco, los equipos de emergencia acceden instantáneamente a la información médica crítica.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px">
+      <div style="background:#1c1c1c;border-radius:10px;padding:16px;border-left:3px solid var(--rojo);text-align:center">
+        <div style="font-size:1.4rem;margin-bottom:6px">🚑</div>
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:4px">SAMU</div>
+        <div style="font-size:2.5rem;font-weight:900;color:var(--rojo);font-family:'Arial Black',Arial">131</div>
+      </div>
+      <div style="background:#1c1c1c;border-radius:10px;padding:16px;border-left:3px solid #E05500;text-align:center">
+        <div style="font-size:1.4rem;margin-bottom:6px">🚒</div>
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:4px">Bomberos</div>
+        <div style="font-size:2.5rem;font-weight:900;color:#E05500;font-family:'Arial Black',Arial">132</div>
+      </div>
+      <div style="background:#1c1c1c;border-radius:10px;padding:16px;border-left:3px solid #1a6acc;text-align:center">
+        <div style="font-size:1.4rem;margin-bottom:6px">🚔</div>
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:4px">Carabineros</div>
+        <div style="font-size:2.5rem;font-weight:900;color:#4a9eff;font-family:'Arial Black',Arial">133</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL STICKER -->
+<div class="modal-overlay" id="modalSticker">
+  <div class="modal-box">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <div class="modal-title">Sticker QR Generado</div>
+    <div class="modal-subtitle">Formato 8 × 6 cm — listo para imprimir</div>
+
+    <div class="sticker-unico" id="stickerUnico">
+      <div class="col-qr">
+        <div class="qr-wrap" id="qrPrincipal"></div>
+        <div class="scan-txt">Escanear QR<br>para info. médica</div>
+      </div>
+      <div class="col-info">
+        <div class="emer-row">
+          <div class="baliza"></div>
+          <span class="emer-txt">EMERGENCIA</span>
+        </div>
+        <div class="nombre-txt" id="s_nombre">—</div>
+        <!-- Sangre + NO QUITE EL CASCO en la misma fila -->
+        <div class="sangre-nocasco-row">
+          <div class="sangre-txt" id="s_sangre">—</div>
+          <div class="nocasco-box">
+            <div class="nocasco-txt">NO QUITE EL CASCO</div>
+          </div>
+        </div>
+        <!-- Números con íconos -->
+        <div class="nums-emergencia">
+          <div class="num-bloque">
+            <span class="num-ico">🚑</span>
+            <span class="num-val">131</span>
+            <span class="num-lbl">SAMU</span>
+          </div>
+          <div class="num-bloque">
+            <span class="num-ico">🚒</span>
+            <span class="num-val">132</span>
+            <span class="num-lbl">BOMBEROS</span>
+          </div>
+          <div class="num-bloque">
+            <span class="num-ico">🚔</span>
+            <span class="num-val">133</span>
+            <span class="num-lbl">CARABINEROS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-print" onclick="window.print()">🖨️ Imprimir Sticker</button>
+      <button class="btn-secondary" onclick="verPaginaPublica()">📱 Vista al escanear QR</button>
+      <button class="btn-wa" id="btn_wa_sticker" style="display:none">💬 Enviar por WhatsApp</button>
+      <button class="btn-secondary" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PÁGINA PÚBLICA -->
+<div id="pagina-qr-content">
+  <div class="pq-beacon-bar">
+    <div class="pq-beacon"></div>
+    <span class="pq-beacon-txt">Información de Emergencia</span>
+    <div class="pq-beacon"></div>
+  </div>
+  <div class="pq-nocasco">⛑️ NO RETIRE EL CASCO ⛑️</div>
+  <div class="pq-body">
+    <div class="pq-sangre-card">
+      <div class="pq-sangre-lbl">🩸 Grupo Sanguíneo</div>
+      <div class="pq-sangre-val" id="pq_sangre">—</div>
+    </div>
+    <div class="pq-dato">
+      <div class="pq-ico">👤</div>
+      <div><div class="pq-lbl">Nombre</div><div class="pq-val" id="pq_nombre">—</div></div>
+    </div>
+    <div class="pq-dato">
+      <div class="pq-ico">🎂</div>
+      <div><div class="pq-lbl">Edad</div><div class="pq-val" id="pq_edad">—</div></div>
+    </div>
+    <div class="pq-dato">
+      <div class="pq-ico">⚠️</div>
+      <div><div class="pq-lbl">Alergias</div><div class="pq-val" id="pq_alergias">—</div></div>
+    </div>
+    <div class="pq-dato">
+      <div class="pq-ico">💊</div>
+      <div><div class="pq-lbl">Medicamentos</div><div class="pq-val" id="pq_medicamentos">—</div></div>
+    </div>
+    <!-- Contacto separado con botón WhatsApp -->
+    <div class="pq-dato">
+      <div class="pq-ico">👤</div>
+      <div style="flex:1">
+        <div class="pq-lbl">Contacto de Emergencia</div>
+        <div class="pq-contacto-row">
+          <div class="pq-val" id="pq_contacto_nombre">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="pq-dato">
+      <div class="pq-ico">📞</div>
+      <div style="flex:1">
+        <div class="pq-lbl">Teléfono de Emergencia</div>
+        <div class="pq-contacto-row">
+          <div class="pq-val" id="pq_contacto_tel">—</div>
+          <a id="btn_wa_pub" class="btn-wa-pub" href="#" target="_blank" style="display:none">
+            💬 WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="pq-emer-block">
+      <div class="pq-emer-title">🚨 Números de Emergencia Chile</div>
+      <div class="pq-nums">
+        <div class="pq-num-item"><div class="pq-n">131</div><div class="pq-s">SAMU</div></div>
+        <div class="pq-num-item"><div class="pq-n">132</div><div class="pq-s">Bomberos</div></div>
+        <div class="pq-num-item"><div class="pq-n">133</div><div class="pq-s">Carabineros</div></div>
+      </div>
+    </div>
+    <button class="btn-back" onclick="cerrarPaginaPublica()">← Volver al sistema</button>
+  </div>
+</div>
+
+<script>
+// ============================================
+// FIREBASE — Configuración y conexión
+// ============================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAajbNtrhO6hrjJNmdzRWyKxlDpV_qIUJA",
+  authDomain: "motoqr-6b8d8.firebaseapp.com",
+  databaseURL: "https://motoqr-6b8d8-default-rtdb.firebaseio.com",
+  projectId: "motoqr-6b8d8",
+  storageBucket: "motoqr-6b8d8.firebasestorage.app",
+  messagingSenderId: "234458491881",
+  appId: "1:234458491881:web:885bf5a0dac2dd6b067978"
+};
+
+let db = null;
+let firebaseOK = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  firebaseOK = true;
+} catch(e) {
+  console.error('Error Firebase:', e);
+}
+
+let conductores = [];
+let conductorActual = null;
+let adminDesbloqueado = false;
+const ADMIN_CODE = 'Myavar123456789';
+
+// Escuchar cambios en tiempo real desde Firebase
+function iniciarSyncFirebase() {
+  if (!firebaseOK) return;
+  db.ref('conductores').on('value', function(snapshot) {
+    const data = snapshot.val();
+    conductores = [];
+    if (data) {
+      Object.keys(data).forEach(function(key) {
+        const reg = data[key];
+        reg._key = key; // guardar la clave de Firebase para poder eliminar
+        conductores.push(reg);
+      });
+    }
+    // Refrescar tabla si estamos en la pestaña admin y está desbloqueada
+    if (adminDesbloqueado && document.getElementById('tab-admin') && document.getElementById('tab-admin').classList.contains('active')) {
+      renderTabla();
+    }
+  });
+}
+
+// Estado de acceso admin (solo durante la sesión actual)
+function showTab(id, e) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (e && e.target) e.target.classList.add('active');
+  if (id === 'admin') {
+    // Mostrar login o contenido según estado
+    if (adminDesbloqueado) {
+      document.getElementById('admin-login').style.display = 'none';
+      document.getElementById('admin-content').style.display = 'block';
+      renderTabla();
+    } else {
+      document.getElementById('admin-login').style.display = 'block';
+      document.getElementById('admin-content').style.display = 'none';
+      const codeInput = document.getElementById('admin-code');
+      if (codeInput) { codeInput.value = ''; setTimeout(() => codeInput.focus(), 100); }
+      document.getElementById('admin-error').style.display = 'none';
+    }
+  }
+}
+
+function validarAcceso() {
+  const code = document.getElementById('admin-code').value.trim();
+  if (code === ADMIN_CODE) {
+    adminDesbloqueado = true;
+    document.getElementById('admin-login').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    document.getElementById('admin-error').style.display = 'none';
+    renderTabla();
+  } else {
+    document.getElementById('admin-error').style.display = 'block';
+    document.getElementById('admin-code').value = '';
+    document.getElementById('admin-code').focus();
+  }
+}
+
+function bloquearAdmin() {
+  adminDesbloqueado = false;
+  document.getElementById('admin-login').style.display = 'block';
+  document.getElementById('admin-content').style.display = 'none';
+  document.getElementById('admin-code').value = '';
+}
+
+// Combo: agrega valor del select al campo texto
+function agregarCombo(selId, inputId) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inputId);
+  const val = sel.value;
+  if (!val) return;
+  const actual = inp.value.trim();
+  if (actual === '' || actual === 'Ninguna' || actual === 'Ninguno') {
+    inp.value = val;
+  } else if (!actual.includes(val)) {
+    inp.value = actual + ', ' + val;
+  }
+  sel.selectedIndex = 0;
+}
+
+// Formatear RUT chileno: 12.345.678-9
+function formatearRUT(input) {
+  let v = input.value.replace(/[^0-9kK]/g,'').toUpperCase();
+  if (v.length === 0) { input.value = ''; return; }
+  const dv = v.slice(-1);
+  let num = v.slice(0,-1);
+  // Formatear con puntos
+  num = num.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  input.value = num ? num + '-' + dv : dv;
+}
+
+// Calcular edad desde fecha de nacimiento
+const COMUNAS = {
+  'Arica y Parinacota': ['Arica','Camarones','Putre','General Lagos'],
+  'Tarapacá': ['Iquique','Alto Hospicio','Pozo Almonte','Camiña','Colchane','Huara','Pica'],
+  'Antofagasta': ['Antofagasta','Mejillones','Sierra Gorda','Taltal','Calama','Ollagüe','San Pedro de Atacama','Tocopilla','María Elena'],
+  'Atacama': ['Copiapó','Caldera','Tierra Amarilla','Chañaral','Diego de Almagro','Vallenar','Alto del Carmen','Freirina','Huasco'],
+  'Coquimbo': ['La Serena','Coquimbo','Andacollo','La Higuera','Paiguano','Vicuña','Illapel','Canela','Los Vilos','Salamanca','Ovalle','Combarbalá','Monte Patria','Punitaqui','Río Hurtado'],
+  'Valparaíso': ['Valparaíso','Casablanca','Concón','Juan Fernández','Puchuncaví','Quintero','Viña del Mar','Isla de Pascua','Los Andes','Calle Larga','Rinconada','San Esteban','La Ligua','Cabildo','Papudo','Petorca','Zapallar','Quillota','Calera','Hijuelas','La Cruz','Nogales','San Antonio','Algarrobo','Cartagena','El Quisco','El Tabo','Santo Domingo','San Felipe','Catemu','Llaillay','Panquehue','Putaendo','Santa María','Quilpué','Limache','Olmué','Villa Alemana'],
+  'Metropolitana': ['Santiago','Cerrillos','Cerro Navia','Conchalí','El Bosque','Estación Central','Huechuraba','Independencia','La Cisterna','La Florida','La Granja','La Pintana','La Reina','Las Condes','Lo Barnechea','Lo Espejo','Lo Prado','Macul','Maipú','Ñuñoa','Pedro Aguirre Cerda','Peñalolén','Providencia','Pudahuel','Quilicura','Quinta Normal','Recoleta','Renca','San Joaquín','San Miguel','San Ramón','Vitacura','Puente Alto','Pirque','San José de Maipo','Colina','Lampa','Tiltil','San Bernardo','Buin','Calera de Tango','Paine','Melipilla','Alhué','Curacaví','María Pinto','San Pedro','Talagante','El Monte','Isla de Maipo','Padre Hurtado','Peñaflor'],
+  "O'Higgins": ['Rancagua','Codegua','Coinco','Coltauco','Doñihue','Graneros','Las Cabras','Machalí','Malloa','Mostazal','Olivar','Peumo','Pichidegua','Quinta de Tilcoco','Rengo','Requínoa','San Vicente','Pichilemu','La Estrella','Litueche','Marchihue','Navidad','Paredones','San Fernando','Chépica','Chimbarongo','Lolol','Nancagua','Palmilla','Peralillo','Placilla','Pumanque','Santa Cruz'],
+  'Maule': ['Talca','Constitución','Curepto','Empedrado','Maule','Pelarco','Pencahue','Río Claro','San Clemente','San Rafael','Cauquenes','Chanco','Pelluhue','Curicó','Hualañé','Licantén','Molina','Rauco','Romeral','Sagrada Familia','Teno','Vichuquén','Linares','Colbún','Longaví','Parral','Retiro','San Javier','Villa Alegre','Yerbas Buenas'],
+  'Ñuble': ['Chillán','Bulnes','Chillán Viejo','El Carmen','Pemuco','Pinto','Quillón','San Ignacio','Yungay','Cobquecura','Coelemu','Ninhue','Portezuelo','Quirihue','Ránquil','Treguaco','Coihueco','Ñiquén','San Carlos','San Fabián','San Nicolás'],
+  'Biobío': ['Concepción','Coronel','Chiguayante','Florida','Hualqui','Lota','Penco','San Pedro de la Paz','Santa Juana','Talcahuano','Tomé','Hualpén','Lebu','Arauco','Cañete','Contulmo','Curanilahue','Los Álamos','Tirúa','Los Ángeles','Antuco','Cabrero','Laja','Mulchén','Nacimiento','Negrete','Quilaco','Quilleco','San Rosendo','Santa Bárbara','Tucapel','Yumbel','Alto Biobío'],
+  'La Araucanía': ['Temuco','Carahue','Cunco','Curarrehue','Freire','Galvarino','Gorbea','Lautaro','Loncoche','Melipeuco','Nueva Imperial','Padre Las Casas','Perquenco','Pitrufquén','Pucón','Saavedra','Teodoro Schmidt','Toltén','Vilcún','Villarrica','Cholchol','Angol','Collipulli','Curacautín','Ercilla','Lonquimay','Los Sauces','Lumaco','Purén','Renaico','Traiguén','Victoria'],
+  'Los Ríos': ['Valdivia','Corral','Futrono','La Unión','Lago Ranco','Lanco','Los Lagos','Máfil','Mariquina','Paillaco','Panguipulli','Río Bueno'],
+  'Los Lagos': ['Puerto Montt','Calbuco','Cochamó','Fresia','Frutillar','Los Muermos','Llanquihue','Maullín','Puerto Varas','Castro','Ancud','Chonchi','Curaco de Vélez','Dalcahue','Puqueldón','Queilén','Quellón','Quemchi','Quinchao','Osorno','Puerto Octay','Purranque','Puyehue','Río Negro','San Juan de la Costa','San Pablo','Chaitén','Futaleufú','Hualaihué','Palena'],
+  'Aysén': ['Coyhaique','Lago Verde','Aysén','Cisnes','Guaitecas','Cochrane','O\'Higgins','Tortel','Chile Chico','Río Ibáñez'],
+  'Magallanes': ['Punta Arenas','Laguna Blanca','Río Verde','San Gregorio','Cabo de Hornos','Antártica','Porvenir','Primavera','Timaukel','Natales','Torres del Paine']
+};
+
+function actualizarComunas() {
+  const region = document.getElementById('f_region').value;
+  const sel = document.getElementById('f_comuna');
+  sel.innerHTML = '<option value="">Seleccionar comuna...</option>';
+  if (!region || !COMUNAS[region]) return;
+  COMUNAS[region].forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+function calcularEdad() {
+  const fechaInput = document.getElementById('f_nacimiento').value;
+  if (!fechaInput) return;
+  const hoy = new Date();
+  const nac = new Date(fechaInput);
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  if (edad >= 0 && edad <= 120) {
+    document.getElementById('f_edad').value = edad;
+  }
+}
+
+// Establecer fecha máxima del calendario (hoy) — esperar a que el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const inp = document.getElementById('f_nacimiento');
+  if (inp) inp.max = hoy;
+  // Iniciar sincronización con Firebase
+  iniciarSyncFirebase();
+});
+
+function registrarConductor() {
+  const nombre = document.getElementById('f_nombre').value.trim();
+  const edad   = document.getElementById('f_edad').value.trim();
+  const cTel   = document.getElementById('f_contacto_tel').value.trim();
+  const sangre = document.getElementById('f_sangre').value;
+  const rut    = document.getElementById('f_rut').value.trim();
+
+  if (!nombre) { alert('El nombre es obligatorio.'); return; }
+  if (!edad)   { alert('La edad es obligatoria.'); return; }
+  if (!cTel || cTel.replace(/\D/g,'').length !== 8) { alert('El teléfono de emergencia debe tener exactamente 8 dígitos.'); return; }
+  if (!sangre) { alert('El grupo sanguíneo es obligatorio.'); return; }
+
+  // Validar RUT duplicado
+  if (rut) {
+    const duplicado = conductores.find(c => c.rut && c.rut.toLowerCase() === rut.toLowerCase());
+    if (duplicado) {
+      alert('⚠️ El RUT ' + rut + ' ya se encuentra registrado.\n\nConductor: ' + duplicado.nombre + '\nFecha de registro: ' + duplicado.fecha + ' ' + (duplicado.hora||''));
+      return;
+    }
+  }
+
+  const c = {
+    id: Date.now(), nombre,
+    rut: document.getElementById('f_rut').value.trim(),
+    edad,
+    telefono: document.getElementById('f_telefono').value.trim() ? '+569' + document.getElementById('f_telefono').value.trim().replace(/\D/g,'') : '',
+    region: document.getElementById('f_region').value,
+    comuna: document.getElementById('f_comuna').value,
+    contactoNombre: document.getElementById('f_contacto_nombre').value.trim(),
+    contactoTel: '+569' + cTel.replace(/\D/g,''),
+    relacion: document.getElementById('f_relacion').value,
+    sangre,
+    alergias: document.getElementById('f_alergias').value.trim() || 'Ninguna',
+    medicamentos: document.getElementById('f_medicamentos').value.trim() || 'Ninguno',
+    condiciones: document.getElementById('f_condiciones').value.trim() || 'Ninguna',
+    vehiculo: document.getElementById('f_vehiculo').value,
+    marca: document.getElementById('f_marca').value,
+    modelo: document.getElementById('f_modelo').value.trim(),
+    patente: document.getElementById('f_patente').value.trim(),
+    fecha: new Date().toLocaleDateString('es-CL'),
+    hora: new Date().toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'})
+  };
+
+  conductorActual = c;
+
+  // Enviar copia a Google Sheets (en paralelo, sin bloquear)
+  enviarAGoogleSheets(c);
+
+  // Guardar en Firebase
+  if (firebaseOK) {
+    db.ref('conductores').push(c)
+      .then(function() {
+        const alerta = document.getElementById('alertaExito');
+        alerta.classList.add('show');
+        setTimeout(() => alerta.classList.remove('show'), 4000);
+        limpiarForm();
+        abrirModal(c);
+      })
+      .catch(function(err) {
+        alert('Error al guardar en la nube: ' + err.message + '\n\nVerifique su conexión a internet.');
+      });
+  } else {
+    alert('⚠️ No hay conexión con la base de datos. Verifique su internet e intente nuevamente.');
+  }
+}
+
+// Envia el registro a Google Sheets via Apps Script
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxhuL_la6_1p0xMZdadibxasr-adKYo9fo4XkFljVfq0Y2Xo9wmz8es0BsUl4ELJsYzyg/exec';
+
+function enviarAGoogleSheets(c) {
+  try {
+    fetch(GOOGLE_SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(c)
+    }).catch(function(err) { console.warn('Google Sheets:', err); });
+  } catch(e) { console.warn('Google Sheets error:', e); }
+}
+
+// URL base del sitio publicado en GitHub Pages
+const BASE_URL = 'https://mchd-cl.github.io/MotoQR/';
+
+function buildURL(c) {
+  // Construye una URL con los datos del conductor para que al escanear
+  // el QR se abra la pantalla de emergencia automáticamente
+  return BASE_URL
+    + '?n='  + encodeURIComponent(c.nombre || '')
+    + '&e='  + encodeURIComponent(c.edad || '')
+    + '&s='  + encodeURIComponent(c.sangre || '')
+    + '&a='  + encodeURIComponent((c.alergias || 'Ninguna').substring(0, 60))
+    + '&m='  + encodeURIComponent((c.medicamentos || 'Ninguno').substring(0, 60))
+    + '&cn=' + encodeURIComponent(c.contactoNombre || '')
+    + '&cr=' + encodeURIComponent(c.relacion || '')
+    + '&ct=' + encodeURIComponent(c.contactoTel || '');
+}
+
+function abrirModal(c) {
+  const qrEl = document.getElementById('qrPrincipal');
+  qrEl.innerHTML = '';
+  document.getElementById('s_sangre').textContent = c.sangre;
+
+  const urlData = buildURL(c);
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/'
+    + '?size=200x200&ecc=M&margin=6'
+    + '&data=' + encodeURIComponent(urlData);
+
+  const img = document.createElement('img');
+  img.width = 116;
+  img.height = 116;
+  img.alt = 'QR';
+  img.style.cssText = 'display:block;border-radius:4px;width:116px;height:116px;';
+  img.onerror = function() {
+    qrEl.innerHTML = '<div style="width:116px;height:116px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:4px;padding:6px;text-align:center;font-size:0.5rem;color:#333;">Activa internet para generar QR</div>';
+  };
+  img.src = qrUrl;
+  qrEl.appendChild(img);
+
+  // Botón WhatsApp al teléfono personal del piloto
+  const tel = (c.telefono || '').replace(/\D/g, '');
+  const btnWA = document.getElementById('btn_wa_sticker');
+  if (tel.length > 5) {
+    btnWA.style.display = 'inline-flex';
+    btnWA.onclick = () => {
+      const msg = '🏍️ *Moto-QR Chile*\n\nHola ' + c.nombre + ', tu sticker QR de emergencia está listo.\n\n🩸 Grupo sanguíneo: *' + c.sangre + '*\n\nImprime tu sticker y pégalo en tu casco. En caso de accidente, el rescatista escaneará el QR y verá tu información médica al instante.\n\n⛑️ NO QUITE EL CASCO';
+      window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+    };
+  } else {
+    btnWA.style.display = 'none';
+  }
+
+  document.getElementById('modalSticker').classList.add('open');
+}
+
+function cerrarModal() { document.getElementById('modalSticker').classList.remove('open'); }
+
+function verPaginaPublica() {
+  const c = conductorActual; if (!c) return;
+  document.getElementById('pq_nombre').textContent       = c.nombre;
+  document.getElementById('pq_edad').textContent         = c.edad + ' años';
+  document.getElementById('pq_sangre').textContent       = c.sangre;
+  document.getElementById('pq_alergias').textContent     = c.alergias;
+  document.getElementById('pq_medicamentos').textContent = c.medicamentos;
+  document.getElementById('pq_contacto_nombre').textContent = c.contactoNombre + (c.relacion ? ' (' + c.relacion + ')' : '');
+  document.getElementById('pq_contacto_tel').textContent = c.contactoTel;
+
+  // Botón WhatsApp en vista pública
+  const tel = c.contactoTel.replace(/\D/g,'');
+  const btnWA = document.getElementById('btn_wa_pub');
+  if (tel.length > 5) {
+    btnWA.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent('Hola ' + c.contactoNombre + ', hubo un accidente con ' + c.nombre + '. Por favor comuníquese urgente.');
+    btnWA.style.display = 'inline-flex';
+  } else {
+    btnWA.style.display = 'none';
+  }
+
+  document.getElementById('pagina-qr-content').classList.add('show');
+  cerrarModal();
+}
+function cerrarPaginaPublica() { document.getElementById('pagina-qr-content').classList.remove('show'); }
+
+function renderTabla() {
+  var tbody = document.getElementById('tbodyAdmin');
+  document.getElementById('countLabel').textContent = conductores.length + ' rider' + (conductores.length !== 1 ? 's' : '');
+  if (!conductores.length) {
+    tbody.innerHTML = '<tr><td colspan="16"><div class="empty-state"><div style="font-size:2.5rem;margin-bottom:10px">-</div><p>Sin riders registrados.</p></div></td></tr>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < conductores.length; i++) {
+    var c = conductores[i];
+    var tel = (c.contactoTel || '').replace(/[^0-9]/g, '');
+    html += '<tr>';
+    html += '<td style="color:#555">' + (i+1) + '</td>';
+    html += '<td style="font-weight:700">' + (c.nombre || '') + '</td>';
+    html += '<td style="color:#888">' + (c.rut || '-') + '</td>';
+    html += '<td>' + (c.edad || '') + '</td>';
+    html += '<td>' + (c.telefono || '-') + '</td>';
+    html += '<td>' + (c.contactoNombre || '-') + '</td>';
+    html += '<td style="color:#aaa">' + (c.relacion || '-') + '</td>';
+    html += '<td><div style="display:flex;align-items:center;gap:6px">';
+    html += '<span style="color:#4a9eff">' + (c.contactoTel || '-') + '</span>';
+    if (tel.length > 5) {
+      html += '<a href="https://wa.me/' + tel + '" target="_blank" style="background:#25D366;color:white;padding:3px 8px;border-radius:5px;font-size:0.7rem;font-weight:700;text-decoration:none">WA</a>';
+    }
+    html += '</div></td>';
+    html += '<td><span class="badge-sangre">' + (c.sangre || '') + '</span></td>';
+    html += '<td>' + (c.alergias || '') + '</td>';
+    html += '<td>' + (c.medicamentos || '') + '</td>';
+    html += '<td>' + (c.condiciones || '') + '</td>';
+    html += '<td>' + (c.vehiculo || '-') + '</td>';
+    html += '<td>' + (c.patente || '-') + '</td>';
+    html += '<td style="color:#666">' + (c.fecha || '') + '</td>';
+    html += '<td style="color:#666">' + (c.hora || '-') + '</td>';
+    html += '<td><div style="display:flex;gap:6px;align-items:center">';
+    html += '<button class="btn-secondary" style="padding:6px 10px;font-size:0.75rem" data-i="' + i + '" onclick="abrirDesdeTabla(+this.dataset.i)">QR</button>';
+    html += '<button class="btn-eliminar" data-i="' + i + '" onclick="eliminarFila(+this.dataset.i)">Eliminar</button>';
+    html += '</div></td>';
+    html += '</tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+function abrirDesdeTabla(i) { conductorActual = conductores[i]; abrirModal(conductorActual); }
+
+function eliminarFila(i) {
+  var c = conductores[i];
+  if (!c) { renderTabla(); return; }
+  if (!confirm('Eliminar rider: ' + c.nombre + (c.rut ? ' (' + c.rut + ')' : '') + '\n\nEsta accion no se puede deshacer.')) return;
+  if (firebaseOK && c._key) {
+    db.ref('conductores/' + c._key).remove()
+      .catch(function(err){ alert('Error al eliminar: ' + err.message); });
+    // La tabla se actualiza sola por el listener en tiempo real
+  } else {
+    alert('No se pudo eliminar. Verifique su conexión.');
+  }
+}
+
+function eliminarTodos() {
+  var total = conductores.length;
+  if (!total) { alert('No hay registros para eliminar.'); return; }
+  var ok = confirm('Eliminar TODOS los ' + total + ' rider(s)?\nEsta accion no se puede deshacer.');
+  if (!ok) return;
+  if (firebaseOK) {
+    db.ref('conductores').remove()
+      .then(function(){ alert('Eliminados ' + total + ' registros correctamente.'); })
+      .catch(function(err){ alert('Error: ' + err.message); });
+  } else {
+    alert('No se pudo eliminar. Verifique su conexión.');
+  }
+}
+
+function resetearSistema() {
+  var ok = confirm('Limpiar TODA la base de datos en la nube?\nSe borraran todos los riders permanentemente.');
+  if (!ok) return;
+  if (firebaseOK) {
+    db.ref('conductores').remove()
+      .then(function(){ alert('Base de datos reiniciada correctamente.'); })
+      .catch(function(err){ alert('Error: ' + err.message); });
+  }
+}
+
+function exportarExcel() {
+  if (!conductores.length) { alert('No hay conductores para exportar.'); return; }
+  const datos = conductores.map((c,i) => ({
+    'N°': i+1, 'Nombre': c.nombre, 'RUT': c.rut||'', 'Edad': c.edad,
+    'Teléfono Personal': c.telefono||'', 'Región': c.region||'', 'Comuna': c.comuna||'',
+    'Contacto Emergencia': c.contactoNombre||'', 'Relación': c.relacion||'',
+    'Teléfono Emergencia': c.contactoTel,
+    'Grupo Sanguíneo': c.sangre, 'Alergias': c.alergias,
+    'Medicamentos': c.medicamentos, 'Condiciones': c.condiciones,
+    'Vehículo': c.vehiculo||'', 'Marca': c.marca||'', 'Modelo': c.modelo||'', 'Patente': c.patente||'', 'Fecha Registro': c.fecha, 'Hora Registro': c.hora||''
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(datos);
+  ws['!cols'] = [{wch:5},{wch:28},{wch:14},{wch:7},{wch:16},{wch:22},{wch:14},{wch:18},{wch:14},{wch:22},{wch:24},{wch:24},{wch:14},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws, 'MotoQR Riders');
+  XLSX.writeFile(wb, 'MotoQR_Chile_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+function limpiarForm() {
+  ['f_nombre','f_rut','f_nacimiento','f_edad','f_telefono','f_contacto_nombre','f_contacto_tel','f_alergias','f_medicamentos','f_condiciones','f_modelo','f_patente'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  ['f_relacion','f_sangre','f_vehiculo','f_marca','f_region','f_comuna','f_alergias_sel','f_med_sel','f_cond_sel'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.selectedIndex=0;
+  });
+}
+
+// Leer QR desde URL al escanear con móvil
+document.addEventListener('DOMContentLoaded', function() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.get('n')) return;
+  document.getElementById('pq_nombre').textContent       = p.get('n') || '—';
+  document.getElementById('pq_edad').textContent         = (p.get('e') || '—') + ' años';
+  document.getElementById('pq_sangre').textContent       = p.get('s') || '—';
+  document.getElementById('pq_alergias').textContent     = p.get('a') || '—';
+  document.getElementById('pq_medicamentos').textContent = p.get('m') || '—';
+  const cn = p.get('cn') || '—';
+  const cr = p.get('cr') || '';
+  document.getElementById('pq_contacto_nombre').textContent = cn + (cr ? ' (' + cr + ')' : '');
+  const ct = p.get('ct') || '';
+  document.getElementById('pq_contacto_tel').textContent = ct;
+  const tel = ct.replace(/\D/g,'');
+  const btnWA = document.getElementById('btn_wa_pub');
+  if (tel.length > 5) {
+    btnWA.href = 'https://wa.me/' + tel + '?text=' + encodeURIComponent('Hola ' + cn + ', hubo un accidente con ' + p.get('n') + '. Por favor comuníquese urgente.');
+    btnWA.style.display = 'inline-flex';
+  }
+  document.getElementById('pagina-qr-content').classList.add('show');
+});
+</script>
+</body>
+</html>
